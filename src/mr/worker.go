@@ -3,14 +3,15 @@ package mr
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
+	"log"
+	"net/rpc"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 )
-import "log"
-import "net/rpc"
-import "hash/fnv"
 
 // Map functions return a slice of KeyValue.
 type KeyValue struct {
@@ -49,9 +50,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			reducer(&task, reducef)
 		case WaitTask:
 			time.Sleep(time.Second)
-			ReportTaskToCoordinator(&task)
 		case ExitTask:
-			ReportTaskToCoordinator(&task)
 			return
 		default:
 			fmt.Println("unknown task type")
@@ -73,10 +72,10 @@ func getTaskFromCoordinator() Task {
 	return task
 }
 func ReportTaskToCoordinator(task *Task) {
-	args := TaskArgs{}
-	// fmt.Printf("report task: %v\n", task.TaskType)
-	call("Coordinator.GetReportTask", &args, task)
+	reply := Task{}
+	call("Coordinator.GetReportTask", task, &reply)
 }
+
 func mapper(task *Task, mapf func(string, string) []KeyValue) {
 	// 从 input 转化为中间键值对
 	intermediate := make([][]KeyValue, task.NReduce)
@@ -111,59 +110,56 @@ func mapper(task *Task, mapf func(string, string) []KeyValue) {
 			enc.Encode(&kv)
 		}
 
-		// 记录中间文件名
-		task.IntermediateFiles = append(task.IntermediateFiles, oname)
 	}
-	// log.Println("map task: ", task.MapTaskId, " done ")
 	ReportTaskToCoordinator(task)
 }
 
 func reducer(task *Task, reducef func(string, []string) string) {
-	for reuduceId := 0; reuduceId < task.NReduce; reuduceId++ {
-		// mr-out-X 的键值对
-		kva := []KeyValue{}
 
-		for mapid := 0; mapid < task.NMap; mapid++ {
-			oname := fmt.Sprintf("mr-%d-%d", mapid, reuduceId)
-			file, _ := os.Open(oname)
-			defer file.Close()
+	// mr-out-X 的键值对
+	kva := []KeyValue{}
 
-			dec := json.NewDecoder(file)
-			for {
-				var kv KeyValue
-				if err := dec.Decode(&kv); err != nil {
-					break
-				}
-				kva = append(kva, kv)
+	reuduceId, _ := strconv.Atoi(task.InputFileName)
+
+	for mapid := 0; mapid < task.NMap; mapid++ {
+		oname := fmt.Sprintf("mr-%d-%d", mapid, reuduceId)
+		file, _ := os.Open(oname)
+		defer file.Close()
+
+		dec := json.NewDecoder(file)
+		for {
+			var kv KeyValue
+			if err := dec.Decode(&kv); err != nil {
+				break
 			}
+			kva = append(kva, kv)
 		}
-
-		// 排序所有的键值对
-		sort.Sort(ByKey(kva))
-
-		// 合并相邻键值对，输出到 mr-out-X 中
-		oname := fmt.Sprintf("mr-out-%d", reuduceId)
-		ofile, _ := os.Create(oname)
-
-		i := 0
-		for i < len(kva) {
-			j := i + 1
-			for j < len(kva) && kva[j].Key == kva[i].Key {
-				j++
-			}
-			values := []string{}
-			for k := i; k < j; k++ {
-				values = append(values, kva[k].Value)
-			}
-			output := reducef(kva[i].Key, values)
-
-			// this is the correct format for each line of Reduce output.
-			fmt.Fprintf(ofile, "%v %v\n", kva[i].Key, output)
-			i = j
-		}
-		// log.Println("reduce task: ", oname, " done ")
-		ofile.Close()
 	}
+
+	// 排序所有的键值对
+	sort.Sort(ByKey(kva))
+
+	// 合并相邻键值对，输出到 mr-out-X 中
+	oname := fmt.Sprintf("mr-out-%d", reuduceId)
+	ofile, _ := os.Create(oname)
+
+	i := 0
+	for i < len(kva) {
+		j := i + 1
+		for j < len(kva) && kva[j].Key == kva[i].Key {
+			j++
+		}
+		values := []string{}
+		for k := i; k < j; k++ {
+			values = append(values, kva[k].Value)
+		}
+		output := reducef(kva[i].Key, values)
+
+		// this is the correct format for each line of Reduce output.
+		fmt.Fprintf(ofile, "%v %v\n", kva[i].Key, output)
+		i = j
+	}
+	ofile.Close()
 	// log.Println("all reduce task done", task.TaskType) // 1
 	ReportTaskToCoordinator(task)
 }
