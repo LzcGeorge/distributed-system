@@ -1,0 +1,185 @@
+000007 T0000 LOG1 S0 Follower -> Candidate: Term 0 -> Term 1
+000009 T0001 VOTE S0 -> S1, Ask vote,Args = Candidate-0, T1, Last: [0]T0
+000009 T0001 VOTE S0 -> S2, Ask vote,Args = Candidate-0, T1, Last: [0]T0
+Test (2B): basic agreement ...
+000011 T0000 LOG1 S1 Follower -> Candidate: Term 0 -> Term 1
+000011 T0001 VOTE S1 -> S0, Ask vote,Args = Candidate-1, T1, Last: [0]T0
+000011 T0001 VOTE S1 -> S2, Ask vote,Args = Candidate-1, T1, Last: [0]T0
+000011 T0000 LOG1 S2 Follower -> Candidate: Term 0 -> Term 1
+000011 T0001 VOTE S2 -> S0, Ask vote,Args = Candidate-2, T1, Last: [0]T0
+000011 T0001 VOTE S2 -> S1, Ask vote,Args = Candidate-2, T1, Last: [0]T0
+000014 T0001 VOTE S2 -> S0 Reject vote, already voted for S2
+000015 T0001 VOTE S1 -> S0 Reject vote, already voted for S1
+000015 T0001 VOTE S0 -> S1 Reject vote, already voted for S0
+000016 T0001 VOTE S2 -> S1 Reject vote, already voted for S2
+000017 T0001 VOTE S1 -> S2 Reject vote, already voted for S1
+000019 T0001 VOTE S0 -> S2 Reject vote, already voted for S0
+001819 T0001 LOG1 S0 Candidate -> Candidate: Term 1 -> Term 2
+001821 T0002 VOTE S0 -> S1, Ask vote,Args = Candidate-0, T2, Last: [0]T0
+001821 T0002 VOTE S0 -> S2, Ask vote,Args = Candidate-0, T2, Last: [0]T0
+001826 T0001 LOG1 S1 Candidate -> Follower: Term 1 -> Term 2
+001826 T0001 LOG1 S2 Candidate -> Follower: Term 1 -> Term 2
+001826 T0002 VOTE S2 -> S0 Vote for S0
+001826 T0002 VOTE S1 -> S0 Vote for S0
+001828 T0002 WARN S0 Become Leader: [Candidate](T2)
+001828 T0002 VOTE S0 Context lost, abort RequestVoteReply for S1
+001829 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 0, LeaderCommit: 0
+001829 T0002 ERRO S0 -> S1, rf.Logs: 1
+001829 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 0, LeaderCommit: 0
+001829 T0002 ERRO S0 -> S2, rf.Logs: 1
+001834 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+001834 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+001834 T0002 ERRO S1 <- receive args.Entries: 0
+001834 T0002 LOG2 S1 Follower append logs: (0:0]
+001834 T0002 ERRO S2 <- receive args.Entries: 0
+001834 T0002 LOG2 S2 Follower append logs: (0:0]
+001836 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 0, LeaderCommit: 0)
+001836 T0002 LOG2 S0 S1 matchIndex: 0, nextIndex: 1 args.PrevLogIndex: 0 args.Entries: 0
+001836 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 0, LeaderCommit: 0)
+001836 T0002 LOG2 S0 S2 matchIndex: 0, nextIndex: 1 args.PrevLogIndex: 0 args.Entries: 0
+002043 T0002 DBUG S0 Leader append log: (1,100) in T2
+003837 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 1, LeaderCommit: 0
+003838 T0002 ERRO S0 -> S1, rf.Logs: 2
+003838 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 1, LeaderCommit: 0
+003839 T0002 ERRO S0 -> S2, rf.Logs: 2
+003843 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+003843 T0002 ERRO S2 <- receive args.Entries: 1
+003843 T0002 LOG2 S2 Follower append logs: (0:1]
+003843 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+003844 T0002 ERRO S1 <- receive args.Entries: 1
+003844 T0002 LOG2 S1 Follower append logs: (0:1]
+003844 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 1, LeaderCommit: 0)
+003844 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 0 args.Entries: 1
+003845 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 0, PrevLogTerm: 0, Entries: 1, LeaderCommit: 0)
+003845 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 0 args.Entries: 1
+005846 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+005847 T0002 ERRO S0 -> S1, rf.Logs: 2
+005847 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+005847 T0002 ERRO S0 -> S2, rf.Logs: 2
+005851 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+005852 T0002 ERRO S1 <- receive args.Entries: 0
+005852 T0002 LOG2 S1 Follower append logs: (1:1]
+005851 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+005852 T0002 ERRO S2 <- receive args.Entries: 0
+005852 T0002 LOG2 S2 Follower append logs: (1:1]
+005853 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+005853 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+005853 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+005853 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+007858 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+007859 T0002 ERRO S0 -> S1, rf.Logs: 2
+007859 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+007859 T0002 ERRO S0 -> S2, rf.Logs: 2
+007863 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+007863 T0002 ERRO S2 <- receive args.Entries: 0
+007863 T0002 LOG2 S2 Follower append logs: (1:1]
+007863 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+007863 T0002 ERRO S1 <- receive args.Entries: 0
+007864 T0002 LOG2 S1 Follower append logs: (1:1]
+007865 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+007865 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+007865 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+007865 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+009871 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+009871 T0002 ERRO S0 -> S1, rf.Logs: 2
+009872 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+009872 T0002 ERRO S0 -> S2, rf.Logs: 2
+009876 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+009876 T0002 ERRO S1 <- receive args.Entries: 0
+009876 T0002 LOG2 S1 Follower append logs: (1:1]
+009876 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+009877 T0002 ERRO S2 <- receive args.Entries: 0
+009877 T0002 LOG2 S2 Follower append logs: (1:1]
+009878 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+009878 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+009879 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+009879 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+011878 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+011879 T0002 ERRO S0 -> S1, rf.Logs: 2
+011879 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+011879 T0002 ERRO S0 -> S2, rf.Logs: 2
+011885 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+011885 T0002 ERRO S1 <- receive args.Entries: 0
+011885 T0002 LOG2 S1 Follower append logs: (1:1]
+011886 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+011886 T0002 ERRO S2 <- receive args.Entries: 0
+011886 T0002 LOG2 S2 Follower append logs: (1:1]
+011888 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+011888 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+011888 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+011888 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+013888 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+013888 T0002 ERRO S0 -> S1, rf.Logs: 2
+013889 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+013889 T0002 ERRO S0 -> S2, rf.Logs: 2
+013894 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+013894 T0002 ERRO S2 <- receive args.Entries: 0
+013894 T0002 LOG2 S2 Follower append logs: (1:1]
+013894 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+013894 T0002 ERRO S1 <- receive args.Entries: 0
+013894 T0002 LOG2 S1 Follower append logs: (1:1]
+013895 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+013895 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+013896 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+013896 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+015890 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+015890 T0002 ERRO S0 -> S1, rf.Logs: 2
+015891 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+015891 T0002 ERRO S0 -> S2, rf.Logs: 2
+015895 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+015896 T0002 ERRO S1 <- receive args.Entries: 0
+015896 T0002 LOG2 S1 Follower append logs: (1:1]
+015895 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+015896 T0002 ERRO S2 <- receive args.Entries: 0
+015896 T0002 LOG2 S2 Follower append logs: (1:1]
+015897 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+015897 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+015898 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+015898 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+017898 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+017898 T0002 ERRO S0 -> S1, rf.Logs: 2
+017899 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+017899 T0002 ERRO S0 -> S2, rf.Logs: 2
+017904 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+017904 T0002 ERRO S2 <- receive args.Entries: 0
+017904 T0002 LOG2 S2 Follower append logs: (1:1]
+017904 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+017905 T0002 ERRO S1 <- receive args.Entries: 0
+017905 T0002 LOG2 S1 Follower append logs: (1:1]
+017906 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+017906 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+017906 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+017906 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+019906 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+019907 T0002 ERRO S0 -> S1, rf.Logs: 2
+019907 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+019907 T0002 ERRO S0 -> S2, rf.Logs: 2
+019911 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+019912 T0002 ERRO S2 <- receive args.Entries: 0
+019911 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+019912 T0002 ERRO S1 <- receive args.Entries: 0
+019912 T0002 LOG2 S1 Follower append logs: (1:1]
+019912 T0002 LOG2 S2 Follower append logs: (1:1]
+019913 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+019913 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+019918 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+019918 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+021910 T0002 LOG1 S0 Leader send AppendEntries to S1, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+021910 T0002 ERRO S0 -> S1, rf.Logs: 2
+021911 T0002 LOG1 S0 Leader send AppendEntries to S2, args: T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0
+021911 T0002 ERRO S0 -> S2, rf.Logs: 2
+021916 T0002 LOG1 S2 Follower -> Follower: Term 2 -> Term 2
+021917 T0002 ERRO S2 <- receive args.Entries: 0
+021917 T0002 LOG1 S1 Follower -> Follower: Term 2 -> Term 2
+021917 T0002 ERRO S1 <- receive args.Entries: 0
+021917 T0002 LOG2 S1 Follower append logs: (1:1]
+021917 T0002 LOG2 S2 Follower append logs: (1:1]
+021919 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+021919 T0002 LOG2 S0 S1 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+021919 T0002 LOG1 S0 receive args: %!(EXTRA string=T2, Leader: 0,PrevLogIndex: 1, PrevLogTerm: 2, Entries: 0, LeaderCommit: 0)
+021919 T0002 LOG2 S0 S2 matchIndex: 1, nextIndex: 2 args.PrevLogIndex: 1 args.Entries: 0
+--- FAIL: TestBasicAgree2B (2.21s)
+    config.go:596: one(100) failed to reach agreement
+FAIL
+exit status 1
+FAIL	6.824/raft	2.743s
