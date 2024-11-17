@@ -83,6 +83,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// 投票
 	reply.VoteGranted = true
 	rf.votedFor = args.CandidateId
+
+	rf.persist() // 持久化 voteFor
+
 	rf.resetElectionTimer()
 	LOG(rf.me, rf.currentTerm, DVote, "-> S%d Vote for S%d", args.CandidateId, rf.votedFor)
 }

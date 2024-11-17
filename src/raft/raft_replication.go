@@ -2,14 +2,15 @@ package raft
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
 // LogEntry
 type LogEntry struct {
-	Term      int         // Term number received by Leader
-	Command   interface{} // command for state machine
-	Committed bool        // true if it is safe for that entry to be applied to state machines.
+	Term         int         // Term number received by Leader
+	Command      interface{} // command for state machine
+	CommandValid bool        // true if it is safe for that entry to be applied to state machines.
 }
 
 type AppendEntriesArgs struct {
@@ -59,11 +60,19 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// 2. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it
 	rf.Logs = append(rf.Logs[:args.PrevLogIndex+1], args.Entries...)
+	rf.persist() // 持久化 Logs
+
 	reply.Success = true
 
 	LOG(rf.me, rf.currentTerm, DError, "<- receive args.Entries: %v", len(args.Entries))
 	LOG(rf.me, rf.currentTerm, DLog2, "Follower append logs: (%d:%d]", args.PrevLogIndex, args.PrevLogIndex+len(args.Entries))
-	// todo: 3. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+
+	//3. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+	if args.LeaderCommit > rf.commitIndex {
+		rf.commitIndex = args.LeaderCommit
+		rf.applyCond.Signal()
+		LOG(rf.me, rf.currentTerm, DLog2, "Follower update commitIndex: %d", rf.commitIndex)
+	}
 
 	rf.resetElectionTimer()
 }
@@ -74,6 +83,16 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 
 func (rf *AppendEntriesArgs) String() string {
 	return fmt.Sprintf("T%d, Leader: %d,PrevLogIndex: %d, PrevLogTerm: %d, Entries: %v, LeaderCommit: %d", rf.Term, rf.LeaderId, rf.PrevLogIndex, rf.PrevLogTerm, len(rf.Entries), rf.LeaderCommit)
+}
+
+func (rf *Raft) getMajorityIndex() int {
+	tmp := make([]int, len(rf.peers))
+	copy(tmp, rf.matchIndex)
+	sort.Ints(sort.IntSlice(tmp))
+
+	// 选取中间值
+	majority := tmp[(len(rf.peers)-1)/2]
+	return majority
 }
 func (rf *Raft) startReplication(term int) bool {
 
@@ -116,7 +135,15 @@ func (rf *Raft) startReplication(term int) bool {
 		rf.nextIndex[peer] = rf.matchIndex[peer] + 1
 		LOG(rf.me, rf.currentTerm, DLog, "receive args: ", args.String())
 		LOG(rf.me, rf.currentTerm, DLog2, "S%d matchIndex: %d, nextIndex: %d args.PrevLogIndex: %d args.Entries: %d", peer, rf.matchIndex[peer], rf.nextIndex[peer], args.PrevLogIndex, len(args.Entries))
+
 		// todo: update commitIndex
+		majorityMatched := rf.getMajorityIndex()
+		if majorityMatched > rf.commitIndex {
+			rf.commitIndex = majorityMatched
+			rf.applyCond.Signal()
+			LOG(rf.me, rf.currentTerm, DLog2, "Leader update commitIndex: %d to %d", rf.commitIndex, majorityMatched)
+		}
+
 	}
 
 	rf.mu.Lock()
@@ -155,6 +182,7 @@ func (rf *Raft) startReplication(term int) bool {
 // startReplication 仅对当前 Term（任期）进行同步/心跳
 func (rf *Raft) replicationTicker(term int) {
 	for rf.killed() == false {
+
 		ok := rf.startReplication(term)
 		if !ok {
 			break

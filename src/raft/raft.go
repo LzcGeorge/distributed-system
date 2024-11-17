@@ -78,8 +78,11 @@ type Raft struct {
 	nextIndex  []int // for each server, index of the next log entry to send to that server
 	matchIndex []int // for each server, index of highest log entry known to be replicated on server
 
+	// fields for apply loop
 	commitIndex int // index of highest log entry known to be Committed
 	lastApplied int // index of highest log entry applied to state machine
+	applyCh     chan ApplyMsg
+	applyCond   *sync.Cond
 
 	electionStart   time.Time     // time when election was started
 	electionTimeout time.Duration // duration of election timeout, random
@@ -98,7 +101,17 @@ func (rf *Raft) becomeFollower(term int) {
 	if term > rf.currentTerm {
 		rf.votedFor = -1
 	}
+	// 是否持久化
+	f_persist := rf.currentTerm != term
+
+	// 更新
 	rf.currentTerm = term
+
+	if f_persist {
+		//rf.mu.Lock() 外面已经有锁了，在becomeFollower 外面加过锁，
+		rf.persist() // 持久化 currentTerm and votedFor
+		//rf.mu.Unlock()
+	}
 }
 
 // role transition: becomeCandidate
@@ -113,6 +126,8 @@ func (rf *Raft) becomeCandidate() {
 	rf.currentTerm++
 	rf.role = Candidate
 	rf.votedFor = rf.me
+
+	rf.persist() // 持久化 currentTerm and votedFor
 }
 
 // role transition: becomeLeader
@@ -136,40 +151,6 @@ func (rf *Raft) GetState() (int, bool) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	return rf.currentTerm, rf.role == Leader
-}
-
-// save Raft's persistent state to stable storage,
-// where it can later be retrieved after a crash and restart.
-// see paper's Figure 2 for a description of what should be persistent.
-func (rf *Raft) persist() {
-	// Your code here (2C).
-	// Example:
-	// w := new(bytes.Buffer)
-	// e := labgob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
-}
-
-// restore previously persisted state.
-func (rf *Raft) readPersist(data []byte) {
-	if data == nil || len(data) < 1 { // bootstrap without any state?
-		return
-	}
-	// Your code here (2C).
-	// Example:
-	// r := bytes.NewBuffer(data)
-	// d := labgob.NewDecoder(r)
-	// var xxx
-	// var yyy
-	// if d.Decode(&xxx) != nil ||
-	//    d.Decode(&yyy) != nil {
-	//   error...
-	// } else {
-	//   rf.xxx = xxx
-	//   rf.yyy = yyy
-	// }
 }
 
 // A service wants to switch to snapshot.  Only do so if Raft hasn't
@@ -207,14 +188,15 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	defer rf.mu.Unlock()
 
 	if rf.role != Leader {
-		return -1, -1, false
+		return 0, 0, false
 	}
 
 	rf.Logs = append(rf.Logs, LogEntry{
-		Term:      rf.currentTerm,
-		Command:   command,
-		Committed: true,
+		Term:         rf.currentTerm,
+		Command:      command,
+		CommandValid: true,
 	})
+	rf.persist() // 持久化 Logs
 	LOG(rf.me, rf.currentTerm, DDebug, "Leader append log: (%d,%v) in T%d", len(rf.Logs)-1, command, rf.currentTerm)
 	return len(rf.Logs) - 1, rf.currentTerm, true
 }
@@ -241,7 +223,7 @@ func (rf *Raft) killed() bool {
 const (
 	electionTimeoutMin  time.Duration = 250 * time.Millisecond
 	electionTimeoutMax  time.Duration = 400 * time.Millisecond
-	replicationInterval time.Duration = 200 * time.Millisecond
+	replicationInterval time.Duration = 70 * time.Millisecond
 )
 
 func (rf *Raft) isContextLost(role Role, term int) bool {
@@ -274,11 +256,16 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.matchIndex = make([]int, len(peers))
 	rf.nextIndex = make([]int, len(peers))
 
+	// initialize the fields for apply loop
+	rf.applyCh = applyCh
+	rf.applyCond = sync.NewCond(&rf.mu)
+
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
 	go rf.ElectionTicker()
+	go rf.ApplicationTicker()
 
 	return rf
 }
