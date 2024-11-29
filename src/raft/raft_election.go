@@ -132,7 +132,7 @@ func (rf *Raft) startElection(term int) {
 		rf.mu.Lock()
 		defer rf.mu.Unlock()
 		if !ok {
-			LOG(rf.me, rf.currentTerm, DDebug, "Ask vote from S%d, Lost or Error", peer)
+			LOG(rf.me, rf.currentTerm, DVote, "Ask vote from S%d, Lost or Error", peer)
 			return
 		}
 

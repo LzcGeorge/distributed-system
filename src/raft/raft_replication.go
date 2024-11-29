@@ -28,9 +28,12 @@ type AppendEntriesArgs struct {
 type AppendEntriesReply struct {
 	Term    int
 	Success bool
+
+	ConflictIndex int
+	ConflictTerm  int
 }
 
-// Peer's callback function
+// Follower's callback function
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -49,14 +52,26 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// 1. Reply false if log doesn’t contain an entry at prevLogIndex whose Term matches prevLogTerm
 	if args.PrevLogIndex >= len(rf.Logs) {
+		reply.ConflictIndex = len(rf.Logs)
+		reply.ConflictTerm = InvalidTerm
 		LOG(rf.me, rf.currentTerm, DLog2, "Reject AppendEntries from %s[T%d], PrevLogIndex %d out of range", rf.role, rf.currentTerm, args.PrevLogIndex)
 		return
 	}
 
 	if rf.Logs[args.PrevLogIndex].Term != args.PrevLogTerm {
+		reply.ConflictTerm = rf.Logs[args.PrevLogIndex].Term
+		reply.ConflictIndex = rf.firstLogOfTerm(reply.ConflictTerm)
+
 		LOG(rf.me, rf.currentTerm, DLog2, "Reject AppendEntries from %s[T%d], PrevLogIndex %d, PrevLogTerm %d", rf.role, rf.currentTerm, args.PrevLogIndex, args.PrevLogTerm)
 		return
 	}
+
+	defer func() {
+		rf.resetElectionTimer()
+		if !reply.Success {
+			LOG(rf.me, rf.currentTerm, DLog2, "Reject AppendEntries from %s[T%d], PrevLogIndex %d, PrevLogTerm %d", rf.role, rf.currentTerm, args.PrevLogIndex, args.PrevLogTerm)
+		}
+	}()
 
 	// 2. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it
 	rf.Logs = append(rf.Logs[:args.PrevLogIndex+1], args.Entries...)
@@ -74,7 +89,6 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		LOG(rf.me, rf.currentTerm, DLog2, "Follower update commitIndex: %d", rf.commitIndex)
 	}
 
-	rf.resetElectionTimer()
 }
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
 	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
@@ -120,13 +134,23 @@ func (rf *Raft) startReplication(term int) bool {
 		}
 		// 处理 Leader 的 AppendEntriesReply
 		if !reply.Success {
-			// 会退一个 term
-			idx, term := args.PrevLogIndex, args.PrevLogTerm
-			for idx > 0 && rf.Logs[idx].Term == term {
-				idx--
+
+			prevNext := rf.nextIndex[peer]
+			if reply.ConflictTerm == InvalidTerm {
+				rf.nextIndex[peer] = reply.ConflictIndex
+			} else {
+				firstIndex := rf.firstLogOfTerm(reply.ConflictTerm)
+				if firstIndex != InvalidIndex {
+					rf.nextIndex[peer] = firstIndex
+				} else {
+					rf.nextIndex[peer] = reply.ConflictIndex
+				}
 			}
-			rf.nextIndex[peer] = idx + 1
-			LOG(rf.me, rf.currentTerm, DLog, "Not match with S%d in %d, nextIndex[%d] = %d", peer, args.PrevLogIndex, rf.nextIndex[peer])
+			if rf.nextIndex[peer] > prevNext {
+				rf.nextIndex[peer] = prevNext
+			}
+
+			LOG(rf.me, rf.currentTerm, DLog, "-> S%d, Not matched at %d, try next = %d", peer, prevNext, rf.nextIndex[peer])
 			return
 		}
 
@@ -136,9 +160,9 @@ func (rf *Raft) startReplication(term int) bool {
 		LOG(rf.me, rf.currentTerm, DLog, "receive args: ", args.String())
 		LOG(rf.me, rf.currentTerm, DLog2, "S%d matchIndex: %d, nextIndex: %d args.PrevLogIndex: %d args.Entries: %d", peer, rf.matchIndex[peer], rf.nextIndex[peer], args.PrevLogIndex, len(args.Entries))
 
-		// todo: update commitIndex
+		//  update commitIndex
 		majorityMatched := rf.getMajorityIndex()
-		if majorityMatched > rf.commitIndex {
+		if majorityMatched > rf.commitIndex && rf.Logs[majorityMatched].Term == rf.currentTerm {
 			rf.commitIndex = majorityMatched
 			rf.applyCond.Signal()
 			LOG(rf.me, rf.currentTerm, DLog2, "Leader update commitIndex: %d to %d", rf.commitIndex, majorityMatched)

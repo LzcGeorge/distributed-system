@@ -92,7 +92,7 @@ type Raft struct {
 // role transition: becomeFollower
 func (rf *Raft) becomeFollower(term int) {
 	if term < rf.currentTerm {
-		LOG(rf.me, rf.currentTerm, DDebug, "Can't become  Follower: Term %d < currentTerm %d", term, rf.currentTerm)
+		LOG(rf.me, rf.currentTerm, DLog, "Can't become  Follower: Term %d < currentTerm %d", term, rf.currentTerm)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (rf *Raft) becomeFollower(term int) {
 // role transition: becomeCandidate
 func (rf *Raft) becomeCandidate() {
 	if rf.role == Leader {
-		LOG(rf.me, rf.currentTerm, DDebug, "Can't become Candidate: already Leader")
+		LOG(rf.me, rf.currentTerm, DWarn, "Can't become Candidate: already Leader")
 		return
 	}
 
@@ -133,14 +133,17 @@ func (rf *Raft) becomeCandidate() {
 // role transition: becomeLeader
 func (rf *Raft) becomeLeader() {
 	if rf.role != Candidate {
-		LOG(rf.me, rf.currentTerm, DDebug, "Can't become Leader: not Candidate")
+		LOG(rf.me, rf.currentTerm, DWarn, "Can't become Leader: not Candidate")
 		return
 	}
 
 	LOG(rf.me, rf.currentTerm, DWarn, "Become Leader: [%s](T%d)", rf.role, rf.currentTerm)
 	rf.role = Leader
 	for i := 0; i < len(rf.peers); i++ {
-		rf.nextIndex[i] = len(rf.Logs)
+		if len(rf.Logs) != 1 {
+			LOG(rf.me, rf.currentTerm, DDebug, "len(rf.Logs) = %d, i = %d", len(rf.Logs), i)
+		}
+		rf.nextIndex[i] = 1
 		rf.matchIndex[i] = 0
 	}
 }
@@ -197,7 +200,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		CommandValid: true,
 	})
 	rf.persist() // 持久化 Logs
-	LOG(rf.me, rf.currentTerm, DDebug, "Leader append log: (%d,%v) in T%d", len(rf.Logs)-1, command, rf.currentTerm)
+	LOG(rf.me, rf.currentTerm, DWarn, "Leader append log: (%d,%v) in T%d", len(rf.Logs)-1, command, rf.currentTerm)
 	return len(rf.Logs) - 1, rf.currentTerm, true
 }
 
@@ -226,8 +229,24 @@ const (
 	replicationInterval time.Duration = 70 * time.Millisecond
 )
 
+const (
+	InvalidTerm  int = 0
+	InvalidIndex int = 0
+)
+
 func (rf *Raft) isContextLost(role Role, term int) bool {
 	return rf.role != role || rf.currentTerm != term
+}
+
+func (rf *Raft) firstLogOfTerm(term int) int {
+	for i := len(rf.Logs) - 1; i >= 0; i-- {
+		if rf.Logs[i].Term == term {
+			return i
+		} else if rf.Logs[i].Term > term {
+			return InvalidIndex
+		}
+	}
+	return InvalidIndex
 }
 
 // the service or tester wants to create a Raft server. the ports
@@ -248,17 +267,19 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// 2A: When servers start up, they begin as followers.
 	rf.role = Follower
-	rf.currentTerm = 0
+	rf.currentTerm = 1
 	rf.votedFor = -1
 
 	// 2B
-	rf.Logs = append(rf.Logs, LogEntry{}) // a dummy entry
+	rf.Logs = append(rf.Logs, LogEntry{Term: InvalidTerm}) // a dummy entry
 	rf.matchIndex = make([]int, len(peers))
 	rf.nextIndex = make([]int, len(peers))
 
 	// initialize the fields for apply loop
 	rf.applyCh = applyCh
 	rf.applyCond = sync.NewCond(&rf.mu)
+	rf.commitIndex = 0
+	rf.lastApplied = 0
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
