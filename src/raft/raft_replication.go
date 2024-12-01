@@ -51,16 +51,16 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	// 1. Reply false if log doesn’t contain an entry at prevLogIndex whose Term matches prevLogTerm
-	if args.PrevLogIndex >= len(rf.Logs) {
-		reply.ConflictIndex = len(rf.Logs)
+	if args.PrevLogIndex >= rf.Logs.size() {
+		reply.ConflictIndex = rf.Logs.size()
 		reply.ConflictTerm = InvalidTerm
 		LOG(rf.me, rf.currentTerm, DLog2, "Reject AppendEntries from %s[T%d], PrevLogIndex %d out of range", rf.role, rf.currentTerm, args.PrevLogIndex)
 		return
 	}
 
-	if rf.Logs[args.PrevLogIndex].Term != args.PrevLogTerm {
-		reply.ConflictTerm = rf.Logs[args.PrevLogIndex].Term
-		reply.ConflictIndex = rf.firstLogOfTerm(reply.ConflictTerm)
+	if rf.Logs.at(args.PrevLogIndex).Term != args.PrevLogTerm {
+		reply.ConflictTerm = rf.Logs.at(args.PrevLogIndex).Term
+		reply.ConflictIndex = rf.Logs.firstLogOfTerm(reply.ConflictTerm)
 
 		LOG(rf.me, rf.currentTerm, DLog2, "Reject AppendEntries from %s[T%d], PrevLogIndex %d, PrevLogTerm %d", rf.role, rf.currentTerm, args.PrevLogIndex, args.PrevLogTerm)
 		return
@@ -74,7 +74,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}()
 
 	// 2. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it
-	rf.Logs = append(rf.Logs[:args.PrevLogIndex+1], args.Entries...)
+	rf.Logs.appendFrom(args.PrevLogIndex, args.Entries)
 	rf.persist() // 持久化 Logs
 
 	reply.Success = true
@@ -139,7 +139,7 @@ func (rf *Raft) startReplication(term int) bool {
 			if reply.ConflictTerm == InvalidTerm {
 				rf.nextIndex[peer] = reply.ConflictIndex
 			} else {
-				firstIndex := rf.firstLogOfTerm(reply.ConflictTerm)
+				firstIndex := rf.Logs.firstLogOfTerm(reply.ConflictTerm)
 				if firstIndex != InvalidIndex {
 					rf.nextIndex[peer] = firstIndex
 				} else {
@@ -162,7 +162,7 @@ func (rf *Raft) startReplication(term int) bool {
 
 		//  update commitIndex
 		majorityMatched := rf.getMajorityIndex()
-		if majorityMatched > rf.commitIndex && rf.Logs[majorityMatched].Term == rf.currentTerm {
+		if majorityMatched > rf.commitIndex && rf.Logs.at(majorityMatched).Term == rf.currentTerm {
 			rf.commitIndex = majorityMatched
 			rf.applyCond.Signal()
 			LOG(rf.me, rf.currentTerm, DLog2, "Leader update commitIndex: %d to %d", rf.commitIndex, majorityMatched)
@@ -179,24 +179,37 @@ func (rf *Raft) startReplication(term int) bool {
 	}
 	for i := 0; i < len(rf.peers); i++ {
 		if i == rf.me {
-			rf.matchIndex[i] = len(rf.Logs) - 1
-			rf.nextIndex[i] = len(rf.Logs)
+			rf.matchIndex[i] = rf.Logs.size() - 1
+			rf.nextIndex[i] = rf.Logs.size()
 			continue
 		}
 
 		prevIdx := rf.nextIndex[i] - 1
-		prevTerm := rf.Logs[prevIdx].Term
+		if prevIdx < rf.Logs.snapLastIndex {
+			args := &InstallSnapshotArgs{
+				Term:              rf.currentTerm,
+				LeaderId:          rf.me,
+				LastIncludedIndex: rf.Logs.snapLastIndex,
+				LastIncludedTerm:  rf.Logs.snapLastTerm,
+				Snapshot:          rf.Logs.snapshot,
+			}
+			LOG(rf.me, rf.currentTerm, DDebug, "-> S%d, SendSnap, Args=%v", i, args.String())
+			go rf.insallSnapshotToPeer(i, term, args)
+			continue
+		}
+
+		prevTerm := rf.Logs.at(prevIdx).Term
 		args := &AppendEntriesArgs{
 			Term:     rf.currentTerm,
 			LeaderId: rf.me,
 			// 2B
 			PrevLogIndex: prevIdx,
 			PrevLogTerm:  prevTerm,
-			Entries:      rf.Logs[prevIdx+1:],
+			Entries:      rf.Logs.tail(prevIdx + 1),
 			LeaderCommit: rf.commitIndex,
 		}
 		LOG(rf.me, rf.currentTerm, DLog, "Leader send AppendEntries to S%d, args: %v", i, args.String())
-		LOG(rf.me, rf.currentTerm, DError, "-> S%d, rf.Logs: %d", i, len(rf.Logs))
+		LOG(rf.me, rf.currentTerm, DError, "-> S%d, rf.Logs: %d", i, rf.Logs.size())
 		go replicateToPeer(i, args)
 	}
 

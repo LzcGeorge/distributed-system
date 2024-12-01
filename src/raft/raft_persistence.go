@@ -14,8 +14,9 @@ func (rf *Raft) persist() {
 	e.Encode(rf.currentTerm)
 	e.Encode(rf.votedFor)
 	e.Encode(rf.Logs)
-	data := w.Bytes()
-	rf.persister.SaveRaftState(data)
+	rf.Logs.persist(e)
+	state := w.Bytes()
+	rf.persister.SaveStateAndSnapshot(state, rf.Logs.snapshot)
 }
 
 // restore previously persisted state.
@@ -26,7 +27,6 @@ func (rf *Raft) readPersist(data []byte) {
 
 	var currentTerm int
 	var votedFor int
-	var Logs []LogEntry
 
 	r := bytes.NewBuffer(data)
 	d := labgob.NewDecoder(r)
@@ -42,11 +42,16 @@ func (rf *Raft) readPersist(data []byte) {
 	}
 	rf.votedFor = votedFor
 
-	if err := d.Decode(&Logs); err != nil {
+	if err := rf.Logs.readPersist(d); err != nil {
 		LOG(rf.me, rf.currentTerm, DError, "Decode Logs failed,abort from readPersist")
 		return
 	}
-	rf.Logs = Logs
 
-	LOG(rf.me, rf.currentTerm, DPersist, "Read persist data: currentTerm: %d, votedFor: %d, len(Logs): %v", rf.currentTerm, rf.votedFor, len(rf.Logs))
+	rf.Logs.snapshot = rf.persister.ReadSnapshot()
+
+	if rf.Logs.snapLastIndex > rf.commitIndex {
+		rf.commitIndex = rf.Logs.snapLastIndex
+		rf.lastApplied = rf.Logs.snapLastIndex
+	}
+	LOG(rf.me, rf.currentTerm, DPersist, "Read persist data: currentTerm: %d, votedFor: %d, len(Logs): %v", rf.currentTerm, rf.votedFor, rf.Logs.size())
 }

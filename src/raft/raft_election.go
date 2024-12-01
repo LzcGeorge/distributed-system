@@ -17,8 +17,7 @@ func (rf *Raft) isElectionTimeout() bool {
 }
 
 func (rf *Raft) isMoreUpToDate(candidateIndex, candidateTerm int) bool {
-	sz := len(rf.Logs)
-	lastIndex, lastTerm := sz-1, rf.Logs[sz-1].Term
+	lastIndex, lastTerm := rf.Logs.last()
 	if candidateTerm != lastTerm {
 		return lastTerm > candidateTerm
 	}
@@ -163,7 +162,7 @@ func (rf *Raft) startElection(term int) {
 		LOG(rf.me, rf.currentTerm, DVote, "Lost Candidate to %s, abort startElection", rf.role)
 		return
 	}
-	sz := len(rf.Logs)
+	lastIdx, lastTerm := rf.Logs.last()
 	for i := 0; i < len(rf.peers); i++ {
 		if i == rf.me {
 			vote++ // vote for itself
@@ -175,8 +174,8 @@ func (rf *Raft) startElection(term int) {
 			Term:        rf.currentTerm,
 			CandidateId: rf.me,
 			// 2B
-			LastLogIndex: sz - 1,
-			LastLogTerm:  rf.Logs[sz-1].Term,
+			LastLogIndex: lastIdx,
+			LastLogTerm:  lastTerm,
 		}
 		LOG(rf.me, rf.currentTerm, DVote, "-> S%d, Ask vote,Args = %v", i, args.String())
 		// 异步进行要票

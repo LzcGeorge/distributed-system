@@ -73,7 +73,7 @@ type Raft struct {
 	votedFor    int  // -1 if vote for none
 
 	// log in the Peer's local
-	Logs []LogEntry // log entries
+	Logs *RaftLog
 	// only used in Leader
 	nextIndex  []int // for each server, index of the next log entry to send to that server
 	matchIndex []int // for each server, index of highest log entry known to be replicated on server
@@ -83,6 +83,7 @@ type Raft struct {
 	lastApplied int // index of highest log entry applied to state machine
 	applyCh     chan ApplyMsg
 	applyCond   *sync.Cond
+	snapPending bool
 
 	electionStart   time.Time     // time when election was started
 	electionTimeout time.Duration // duration of election timeout, random
@@ -140,10 +141,7 @@ func (rf *Raft) becomeLeader() {
 	LOG(rf.me, rf.currentTerm, DWarn, "Become Leader: [%s](T%d)", rf.role, rf.currentTerm)
 	rf.role = Leader
 	for i := 0; i < len(rf.peers); i++ {
-		if len(rf.Logs) != 1 {
-			LOG(rf.me, rf.currentTerm, DDebug, "len(rf.Logs) = %d, i = %d", len(rf.Logs), i)
-		}
-		rf.nextIndex[i] = 1
+		rf.nextIndex[i] = rf.Logs.size()
 		rf.matchIndex[i] = 0
 	}
 }
@@ -156,22 +154,12 @@ func (rf *Raft) GetState() (int, bool) {
 	return rf.currentTerm, rf.role == Leader
 }
 
-// A service wants to switch to snapshot.  Only do so if Raft hasn't
-// have more recent info since it communicate the snapshot on applyCh.
+// A service wants to switch to Snapshot.  Only do so if Raft hasn't
+// have more recent info since it communicate the Snapshot on applyCh.
 func (rf *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int, snapshot []byte) bool {
-
 	// Your code here (2D).
 
 	return true
-}
-
-// the service says it has created a snapshot that has
-// all info up to and including index. this means the
-// service no longer needs the log through (and including)
-// that index. Raft should now trim its log as much as possible.
-func (rf *Raft) Snapshot(index int, snapshot []byte) {
-	// Your code here (2D).
-
 }
 
 // the service using Raft (e.g. a k/v server) wants to start
@@ -194,14 +182,14 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		return 0, 0, false
 	}
 
-	rf.Logs = append(rf.Logs, LogEntry{
+	rf.Logs.append(LogEntry{
 		Term:         rf.currentTerm,
 		Command:      command,
 		CommandValid: true,
 	})
 	rf.persist() // 持久化 Logs
-	LOG(rf.me, rf.currentTerm, DWarn, "Leader append log: (%d,%v) in T%d", len(rf.Logs)-1, command, rf.currentTerm)
-	return len(rf.Logs) - 1, rf.currentTerm, true
+	LOG(rf.me, rf.currentTerm, DWarn, "Leader append log: (%d,%v) in T%d", rf.Logs.size()-1, command, rf.currentTerm)
+	return rf.Logs.size() - 1, rf.currentTerm, true
 }
 
 // the tester doesn't halt goroutines created by Raft after each test,
@@ -238,17 +226,6 @@ func (rf *Raft) isContextLost(role Role, term int) bool {
 	return rf.role != role || rf.currentTerm != term
 }
 
-func (rf *Raft) firstLogOfTerm(term int) int {
-	for i := len(rf.Logs) - 1; i >= 0; i-- {
-		if rf.Logs[i].Term == term {
-			return i
-		} else if rf.Logs[i].Term > term {
-			return InvalidIndex
-		}
-	}
-	return InvalidIndex
-}
-
 // the service or tester wants to create a Raft server. the ports
 // of all the Raft servers (including this one) are in peers[]. this
 // server's port is peers[me]. all the servers' peers[] arrays
@@ -271,7 +248,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.votedFor = -1
 
 	// 2B
-	rf.Logs = append(rf.Logs, LogEntry{Term: InvalidTerm}) // a dummy entry
+	rf.Logs = NewLog(InvalidIndex, InvalidTerm, nil, nil) // dummy node
+
 	rf.matchIndex = make([]int, len(peers))
 	rf.nextIndex = make([]int, len(peers))
 
@@ -280,6 +258,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.applyCond = sync.NewCond(&rf.mu)
 	rf.commitIndex = 0
 	rf.lastApplied = 0
+	rf.snapPending = false
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
